@@ -40,6 +40,7 @@ module Kitchen
 
       plugin_version Kitchen::VERSION
 
+      default_config :ssh_cmd, 'ssh'
       default_config :port, 22
       default_config :username, "root"
       default_config :keepalive, true
@@ -93,6 +94,17 @@ module Kitchen
           @session = nil
         end
 
+        def cmd_in_path?(cmd)
+          exts = ENV['PATHEXT'] ? ENV['PATHEXT'].split(';') : ['']
+            ENV['PATH'].split(File::PATH_SEPARATOR).each do |path|
+              exts.each { |ext|
+                exe = File.join(path, "#{cmd}#{ext}")
+                return true if File.executable?(exe) && !File.directory?(exe)
+              }
+            end
+          return false
+        end
+
         # (see Base::Connection#execute)
         def execute(command)
           return if command.nil?
@@ -109,6 +121,20 @@ module Kitchen
 
         # (see Base::Connection#login_command)
         def login_command
+          if cmd_in_path(ssh_cmd)
+            case ssh_cmd
+            when 'ssh'
+              openssh_args
+            else
+              args = %W[ #{username}@#{hostname} ]
+            end
+            LoginCommand.new(ssh_cmd, args)
+          else
+            raise "Login command #{ssh_cmd} not in path"
+          end
+        end
+
+        def openssh_args
           args  = %W[ -o UserKnownHostsFile=/dev/null ]
           args += %W[ -o StrictHostKeyChecking=no ]
           args += %W[ -o IdentitiesOnly=yes ] if options[:keys]
@@ -120,7 +146,7 @@ module Kitchen
           args += %W[ -p #{port} ]
           args += %W[ #{username}@#{hostname} ]
 
-          LoginCommand.new("ssh", args)
+          args
         end
 
         # (see Base::Connection#upload)
@@ -252,6 +278,7 @@ module Kitchen
         # (see Base::Connection#init_options)
         def init_options(options)
           super
+          @ssh_cmd                = @options.delete(:ssh_cmd)
           @username               = @options.delete(:username)
           @hostname               = @options.delete(:hostname)
           @port                   = @options[:port] # don't delete from options
