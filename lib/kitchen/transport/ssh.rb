@@ -40,7 +40,8 @@ module Kitchen
 
       plugin_version Kitchen::VERSION
 
-      default_config :ssh_cmd, 'ssh'
+      default_config :ssh_cmd, "ssh"
+      required_config :ssh_cmd
       default_config :port, 22
       default_config :username, "root"
       default_config :keepalive, true
@@ -121,16 +122,16 @@ module Kitchen
 
         # (see Base::Connection#login_command)
         def login_command
-          if cmd_in_path(ssh_cmd)
+          if cmd_in_path?(ssh_cmd)
             case ssh_cmd
-            when 'ssh'
-              openssh_args
+            when "ssh"
+              args = openssh_args
             else
               args = %W[ #{username}@#{hostname} ]
             end
             LoginCommand.new(ssh_cmd, args)
           else
-            raise "Login command #{ssh_cmd} not in path"
+            raise "\"#{ssh_cmd}\" command is not in system path"
           end
         end
 
@@ -213,6 +214,11 @@ module Kitchen
         # @api private
         attr_reader :port
 
+        # @return [String] ssh command to execute when the login command is
+        #   invoked
+        # @api private
+        attr_accessor :ssh_cmd
+
         # Establish an SSH session on the remote host.
         #
         # @param opts [Hash] retry options
@@ -278,7 +284,6 @@ module Kitchen
         # (see Base::Connection#init_options)
         def init_options(options)
           super
-          @ssh_cmd                = @options.delete(:ssh_cmd)
           @username               = @options.delete(:username)
           @hostname               = @options.delete(:hostname)
           @port                   = @options[:port] # don't delete from options
