@@ -17,6 +17,7 @@
 # limitations under the License.
 
 require "json"
+require "erb"
 
 module Kitchen
 
@@ -50,6 +51,7 @@ module Kitchen
           prepare_json
           prepare_cache
           prepare_cookbooks
+          prepare_dynamic_environment if config[:environment_template]
           prepare(:data)
           prepare(:data_bags)
           prepare(:environments)
@@ -274,6 +276,28 @@ module Kitchen
           end
 
           filter_only_cookbook_files
+        end
+
+        # Prepares a Chef Environment JSON file generated from an ERB
+        # template. 
+        #
+        # @api_private
+        def prepare_dynamic_environment
+          config[:environments_path] = config.fetch(:environments_path,
+                                                    File.join(Dir.mktmpdir))
+          environment_template = ERB.new(File.read(config[:environment_template]))
+          rendered_template = environment_template.result
+          begin
+            config[:environment] = JSON.parse(rendered_template)['name']
+          rescue JSON::ParserError
+            raise(UserError,
+                  "The environment_template #{config[:environment_template]}," \
+                  "does not contain valid JSON syntax.")
+          end
+          environment_file = File.join(config[:environments_path],
+                                       "#{config[:environment]}.json")
+
+          File.open(environment_file, 'w') { |f| f.write(rendered_template) }
         end
 
         # Prepares a Chef JSON file, sometimes called a dna.json or
